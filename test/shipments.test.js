@@ -2,9 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { startApp, postJson, getJson, seedItem } = require('../test-support/harness');
 
-// Every case boots its own app instance through the harness, which reloads src/server.js so
-// both registers start empty and shipment ids restart at SHP-1. The registers are not
-// exported, so state is only ever observed through a second request.
+// Each case boots a fresh app through the harness; state is only observed through a second request.
 
 test('POST /shipments decrements stock and creates a created shipment with a SHP-n id', async () => {
   const { url, close } = await startApp();

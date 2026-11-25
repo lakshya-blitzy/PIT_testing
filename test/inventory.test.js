@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { startApp, postJson, getJson, seedItem } = require('../test-support/harness');
 
+// Each case boots a fresh app through the harness; state is only observed through a second request.
+
 test('POST /inventory stores a valid item and applies the default reorderLevel of 5', async () => {
   const { url, close } = await startApp();
   try {

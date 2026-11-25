@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { startApp, postJson, getJson, seedItem } = require('../test-support/harness');
 
+// Each case boots a fresh app through the harness; state is only observed through a second request.
+
 test('POST /shipments/:id/dispatch dispatches a created shipment and defaults the carrier to standard', async () => {
   const { url, close } = await startApp();
   try {
