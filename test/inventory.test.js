@@ -36,9 +36,36 @@ test('POST /inventory stores a valid item and applies the default reorderLevel o
       reorderLevel: 12,
     });
 
+    const zeroQuantity = await postJson(url, '/inventory', {
+      sku: 'SKU-INV-03',
+      name: 'Washer',
+      quantity: 0,
+    });
+    assert.equal(zeroQuantity.status, 201);
+    assert.deepEqual(zeroQuantity.body, {
+      sku: 'SKU-INV-03',
+      name: 'Washer',
+      quantity: 0,
+      reorderLevel: 5,
+    });
+
+    const zeroReorderLevel = await postJson(url, '/inventory', {
+      sku: 'SKU-INV-04',
+      name: 'Washer',
+      quantity: 3,
+      reorderLevel: 0,
+    });
+    assert.equal(zeroReorderLevel.status, 201);
+    assert.deepEqual(zeroReorderLevel.body, {
+      sku: 'SKU-INV-04',
+      name: 'Washer',
+      quantity: 3,
+      reorderLevel: 0,
+    });
+
     const listed = await getJson(url, '/inventory');
     assert.equal(listed.status, 200);
-    assert.equal(listed.body.length, 2);
+    assert.equal(listed.body.length, 4);
     assert.deepEqual(
       listed.body.find((item) => item.sku === 'SKU-INV-01'),
       defaulted.body,
@@ -46,6 +73,14 @@ test('POST /inventory stores a valid item and applies the default reorderLevel o
     assert.deepEqual(
       listed.body.find((item) => item.sku === 'SKU-INV-02'),
       overridden.body,
+    );
+    assert.deepEqual(
+      listed.body.find((item) => item.sku === 'SKU-INV-03'),
+      zeroQuantity.body,
+    );
+    assert.deepEqual(
+      listed.body.find((item) => item.sku === 'SKU-INV-04'),
+      zeroReorderLevel.body,
     );
   } finally {
     await close();
@@ -87,10 +122,13 @@ test('POST /inventory rejects a duplicate SKU and leaves the stored quantity unc
   try {
     await seedItem(url, { sku: 'SKU-DUP-01', name: 'Bolt', quantity: 4 });
 
+    // Its name, quantity and reorderLevel all differ from the stored record; only the sku is
+    // shared, because it is the duplicate key. The reread proves none of the three landed.
     const duplicate = await postJson(url, '/inventory', {
       sku: 'SKU-DUP-01',
-      name: 'Bolt',
+      name: 'Nut',
       quantity: 99,
+      reorderLevel: 99,
     });
     assert.equal(duplicate.status, 409);
     assert.deepEqual(duplicate.body, { error: 'duplicate sku' });

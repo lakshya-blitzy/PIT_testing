@@ -77,8 +77,12 @@ test('POST /shipments rejects zero, negative and fractional quantities without t
         quantity,
         destination: 'Oslo',
       });
-      assert.equal(response.status, 400);
-      assert.deepEqual(response.body, { error: 'quantity must be positive' });
+      assert.equal(response.status, 400, `quantity ${quantity} must be refused with 400`);
+      assert.deepEqual(
+        response.body,
+        { error: 'quantity must be positive' },
+        `quantity ${quantity} must report the refusal`,
+      );
     }
 
     const listing = await getJson(url, '/inventory');
@@ -130,6 +134,13 @@ test('GET /shipments/:id returns the shipment and 404s for an unknown id', async
       destination: 'York',
     });
     assert.equal(created.status, 201);
+    assert.deepEqual(created.body, {
+      id: 'SHP-1',
+      sku: 'SKU-GET-01',
+      quantity: 2,
+      destination: 'York',
+      status: 'created',
+    });
 
     const found = await getJson(url, `/shipments/${created.body.id}`);
     assert.equal(found.status, 200);

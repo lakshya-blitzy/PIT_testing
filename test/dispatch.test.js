@@ -84,7 +84,12 @@ test('POST /shipments/:id/dispatch refuses a shipment that is not in created sta
       carrier: 'standard',
     });
 
-    const refused = await postJson(url, `/shipments/${created.body.id}/dispatch`);
+    // This attempt names a carrier no dispatch in this case has used, so a handler that ran
+    // the status mutation ahead of the status guard would leave it on the record and the
+    // reread below would catch it.
+    const refused = await postJson(url, `/shipments/${created.body.id}/dispatch`, {
+      carrier: 'dhl',
+    });
     assert.equal(refused.status, 409);
     assert.deepEqual(refused.body, { error: 'shipment cannot be dispatched' });
 

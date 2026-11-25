@@ -36,12 +36,33 @@ async function startApp() {
   };
 }
 
+// Express 4 renders an HTML page, with newlines, for a thrown handler error and for an
+// unmatched path, and places the error message after roughly 110 characters of document
+// markup. A body quoted in an error message is therefore collapsed to one line long enough
+// to reach that message, so what came back is visible.
+const BODY_PREVIEW_LIMIT = 200;
+
+function previewBody(text) {
+  const collapsed = text.replace(/\s+/g, ' ').trim();
+  if (collapsed === '') return '<empty body>';
+  return collapsed.length > BODY_PREVIEW_LIMIT
+    ? `"${collapsed.slice(0, BODY_PREVIEW_LIMIT)}..."`
+    : `"${collapsed}"`;
+}
+
 /**
  * Sends one request over loopback and returns the parsed JSON response.
  *
  * A call with no body carries no content-type and no payload: that bodyless form is what
  * lets the dispatch route fall back to its default carrier, so it must stay bodyless
  * rather than carrying '{}' or a null payload.
+ *
+ * The body is read as text and parsed once so that a failing call still names itself: a
+ * transport failure (refused, unreachable, or broken off mid-body) reports the method,
+ * path and URL it did not complete, and a response that is not JSON (the app's own HTML
+ * error page, or an empty body) reports the method, path, status, content-type and a slice
+ * of the body rather than throwing a bare SyntaxError that discards the status already in
+ * hand.
  *
  * @returns {Promise<{ status: number, body: any }>}
  */
@@ -51,8 +72,35 @@ async function request(url, method, pathname, body) {
     options.headers = { 'content-type': 'application/json' };
     options.body = JSON.stringify(body);
   }
-  const response = await fetch(`${url}${pathname}`, options);
-  return { status: response.status, body: await response.json() };
+  const target = `${url}${pathname}`;
+  let response;
+  try {
+    response = await fetch(target, options);
+  } catch (err) {
+    throw new Error(`request ${method} ${pathname} could not be sent to ${target}`, {
+      cause: err,
+    });
+  }
+  // A connection torn down mid-body is a transport failure too, so it is reported the same
+  // way rather than as a bare socket error with no request attached.
+  let text;
+  try {
+    text = await response.text();
+  } catch (err) {
+    throw new Error(
+      `request ${method} ${pathname} failed while reading the body from ${target}`,
+      { cause: err },
+    );
+  }
+  try {
+    return { status: response.status, body: JSON.parse(text) };
+  } catch {
+    const contentType = response.headers.get('content-type') || 'none';
+    throw new Error(
+      `request ${method} ${pathname} answered ${response.status} ` +
+        `(content-type: ${contentType}) with a body that is not JSON: ${previewBody(text)}`,
+    );
+  }
 }
 
 const postJson = (url, pathname, body) => request(url, 'POST', pathname, body);
@@ -73,7 +121,7 @@ async function seedItem(url, { sku, name, quantity, reorderLevel }) {
   if (response.status !== 201) {
     throw new Error(
       `seedItem could not create ${sku}: expected 201 but received ${response.status} ` +
-        `${JSON.stringify(response.body)}`,
+        `${JSON.stringify(response.body)} for payload ${JSON.stringify(payload)}`,
     );
   }
   return response.body;
